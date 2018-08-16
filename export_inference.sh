@@ -1,8 +1,8 @@
-SLIM_DIR=/home/xxxx/PHICOMM/Project/FoodAi/tensorflow/tensorflow_models/models/research/slim
+SLIM_DIR=/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim
 MODEL_NAME=mobilenet_v2
-MODEL_DIR=/home/xxxx/PHICOMM/RemyWorkSpace/rename_file/renamed_check_point
-FROZEN_DIR=/home/xxxx/PHICOMM/RemyWorkSpace/frozen_pb
-DATASET_NAME=imagenet
+MODEL_DIR=/home/deepl/PHICOMM/RemyWorkSpace/ensemble/CodeX/renamed_check_point
+DATASET_NAME=cifar10
+#DATASET_NAME=imagenet
 IMAGE_SIZE=224
 
 

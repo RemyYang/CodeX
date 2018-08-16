@@ -102,3 +102,10 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+base/
+classifier/
+data/
+frozen_pb/
+renamed_check_point/
+prediction/
+
