@@ -18,37 +18,58 @@ import time
 
 import scipy.io as sio
 
+slim = tf.contrib.slim
 graphs = tf.Graph()
 
-truth = sio.loadmat('/home/xxxx/PHICOMM/RemyWorkSpace/rename_file/data/truth.mat')
+workspace="/home/deepl/PHICOMM/RemyWorkSpace/ensemble/CodeX"
+
+truth = sio.loadmat(workspace+'/data/truth.mat')
 ground_truths = truth['truth']
+#print(ground_truths.shape)
+ground_truths = np.squeeze(ground_truths)
+#print(ground_truths.shape)
+
+
+
 
 def evaluate(pre_mat_path):
 
     with graphs.as_default() as gs:
         ground_truth_input = tf.placeholder(
-            tf.float32, [None, 1001], name='GroundTruthInput')
-        fts = tf.placeholder(tf.float32, [None, 1001], name='fts')
+            tf.float32, [None, 10], name='GroundTruthInput')
+        fts = tf.placeholder(tf.float32, [None, 10], name='fts')
         accuracy, _ = retrain.add_evaluation_step(fts, ground_truth_input)
 
     pre = sio.loadmat(pre_mat_path)
     pre = pre['prediction']
-
+    pre = np.squeeze(pre)
+    #print(pre.shape)
     accuracies = []
     i = 0
+ #   with tf.Session(graph=gs) as sess:
+ #       for ft, ground_truth in zip(pre, ground_truths):
+ #           #print(ft)
+ #           #print(ground_truth)
+ #           feed_dict={fts: ft, ground_truth_input: ground_truth}
+ #           accuracies.append(accuracy.eval(feed_dict, sess))
+     #return np.mean(accuracies)
     with tf.Session(graph=gs) as sess:
-        for ft, ground_truth in zip(pre, ground_truths):
-            feed_dict={fts: ft, ground_truth_input: ground_truth}
-            accuracies.append(accuracy.eval(feed_dict, sess))
+            #print(ft)
+            #print(ground_truth)
+        feed_dict={fts: pre, ground_truth_input: ground_truths}
+        #accuracies.append(accuracy.eval(feed_dict, sess))
+        ret = accuracy.eval(feed_dict, sess)
 
-    return np.mean(accuracies)
+    return ret
+
+
 
 
 import xlsxwriter
 if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-    pred_path = '/home/xxxx/PHICOMM/RemyWorkSpace/rename_file/prediction'
+    pred_path = workspace+'/prediction'
     preds = os.listdir(pred_path)
     predictions = []
     for pr in preds:
@@ -56,6 +77,9 @@ if __name__ == "__main__":
             predictions.append(pr)
     print(predictions)
     print(len(predictions))
+
+    total_start = time.time()
+
 
     pre_nums = []
     for pre in predictions:
@@ -79,5 +103,8 @@ if __name__ == "__main__":
         worksheet.write(i, 1, accuracy)
         print('Ensemble Accuracy: %g' % accuracy)
     workbook.close()
+
+    total_stop = time.time()
+    print("total time is "+str((total_stop-total_start))+' seconds.')
 
 
