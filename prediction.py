@@ -8,52 +8,90 @@ import os
 
 import sys
 import argparse
+import shutil
 
 import numpy as np
 import PIL.Image as Image
 import tensorflow as tf
-
+import pandas as pd
 import retrain as retrain
 from count_ops import load_graph
-
+from glob import glob
 import time
-import shutil
 
 import scipy.io as sio
+import xlsxwriter
 
+sys.path.append("/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim")
+from nets import nets_factory
+from datasets import dataset_factory
 workspace="/home/deepl/PHICOMM/RemyWorkSpace/ensemble/CodeX"
 
-def generate_prediction(graph_classifier, name):
 
-    with graph_classifier.as_default() as gc:
-        feature_input = graph_classifier.get_tensor_by_name('MobilenetV2/Logits/AvgPool:0')
-        predict = graph_classifier.get_tensor_by_name('MobilenetV2/Predictions/Reshape_1:0')
+tf.app.flags.DEFINE_integer(
+    'batch_size', 128, 'The number of samples in each batch.')
 
-    feature = sio.loadmat(workspace+'/data/feature.mat')
-    truth = sio.loadmat(workspace+'/data/truth.mat')
-    ftg = feature['feature']
-    ground_truths = truth['truth']
+tf.app.flags.DEFINE_integer(
+    'max_num_batches', None,
+    'Max number of batches to evaluate by default use all.')
 
-    predictions = []
-    i = 0
-    start = time.time()
-    with tf.Session(graph=gc) as sess:
-        for f in ftg:
-            #print(i)
-            i = i + 1
-            feed_dict={feature_input: f}
-            predictions.append(predict.eval(feed_dict, sess))
-    stop = time.time()
+tf.app.flags.DEFINE_string(
+    'master', '', 'The address of the TensorFlow master to use.')
 
-    print(str((stop-start)/len(predictions))+' seconds.')
+tf.app.flags.DEFINE_string(
+    'checkpoint_path', './renamed_check_point',
+    'The directory where the model was written to or an absolute path to a '
+    'checkpoint file.')
 
-    sio.savemat(workspace+'/prediction/prediction_'+name+'.mat',{"prediction": predictions})
+tf.app.flags.DEFINE_string(
+    'eval_dir', '/tmp/tfmodel/', 'Directory where the results are saved to.')
+
+tf.app.flags.DEFINE_integer(
+    'num_preprocessing_threads', 4,
+    'The number of threads used to create the batches.')
+
+tf.app.flags.DEFINE_string(
+    'dataset_name', 'cifar10', 'The name of the dataset to load.')
+
+tf.app.flags.DEFINE_string(
+    'dataset_split_name', 'test', 'The name of the train/test split.')
+
+tf.app.flags.DEFINE_string(
+    'dataset_dir', "/home/deepl/PHICOMM/dataset/cifar10_tf/cifar10_test.tfrecord", 'The directory where the dataset files are stored.')
+
+tf.app.flags.DEFINE_integer(
+    'labels_offset', 0,
+    'An offset for the labels in the dataset. This flag is primarily used to '
+    'evaluate the VGG and ResNet architectures which do not use a background '
+    'class for the ImageNet dataset.')
+
+tf.app.flags.DEFINE_string(
+    'model_name', 'mobilenet_v2', 'The name of the architecture to evaluate.')
+
+tf.app.flags.DEFINE_string(
+    'preprocessing_name', None, 'The name of the preprocessing to use. If left '
+    'as `None`, then the model_name flag is used.')
+
+tf.app.flags.DEFINE_float(
+    'moving_average_decay', None,
+    'The decay to use for the moving average.'
+    'If left as None, then moving averages are not used.')
+
+tf.app.flags.DEFINE_integer(
+    'eval_image_size', 224, 'Eval image size')
+
+FLAGS = tf.app.flags.FLAGS
 
 
-if __name__ == "__main__":
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-    pb_path =workspace+'/classifier'
+
+
+
+
+
+
+def extract():
+
     prediction_path=workspace+'/prediction'
 
     if os.path.exists(prediction_path):
@@ -62,35 +100,84 @@ if __name__ == "__main__":
         #shutil.rmtree(prediction_path)
     os.makedirs(prediction_path)
 
+    all_checkpoints = glob(os.path.join(FLAGS.checkpoint_path, "*.data*"))
+    #print(all_checkpoints)
+
+    input_layer= "MobilenetV2/Logits/AvgPool"
+    output_layer= "MobilenetV2/Predictions/Reshape_1"
+
+    feature = sio.loadmat(workspace+'/data/feature.mat')
+    truth = sio.loadmat(workspace+'/data/truth.mat')
+    ftg = feature['feature']
+    ground_truths = truth['truth']
+
     total_start = time.time()
 
-    pbs = os.listdir(pb_path)
-    classifiers = []
-    for pb in pbs:
-        if pb.find('classifier') > -1:
-            classifiers.append(pb)
-    print(len(classifiers))
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth=True
 
-    cls_nums = []
-    for cls in classifiers:
-        ncls = cls
-        ncls = ncls.replace('classifier_', '')
-        ncls = ncls.replace('.pb', '')
-#        if ncls[0]=='3':
-        cls_nums.append(ncls)
-    print(cls_nums)
+    workbook = xlsxwriter.Workbook("accuracies3.xlsx")
+    worksheet = workbook.add_worksheet()
 
-    i = 0
-    for cn in cls_nums:
-        print('Predicting.....num=%d'%i)
-        i += 1
-        print(os.path.join(pb_path, 'classifier_'+cn+'.pb'))
-        graph_classifier = load_graph(os.path.join(pb_path, 'classifier_'+cn+'.pb'))
-        generate_prediction(graph_classifier, cn)
 
+    #print(ground_truths.shape)
+
+    with tf.Session(config=config) as sess:
+   # with tf.Session(graph=graph) as sess:
+        dataset = dataset_factory.get_dataset(
+            FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir)
+
+        network_fn = nets_factory.get_network_fn(
+            FLAGS.model_name,
+            num_classes=(dataset.num_classes - FLAGS.labels_offset),
+            is_training=False)
+        placeholder = tf.placeholder(name='input', dtype=tf.float32,
+                                     shape=[None, FLAGS.eval_image_size,
+                                            FLAGS.eval_image_size, 3])
+
+        logits, _ = network_fn(placeholder)
+        graph = tf.get_default_graph()
+        saver = tf.train.Saver()
+        output_operation = graph.get_operation_by_name(output_layer);
+        input_operation = graph.get_operation_by_name(input_layer);
+
+        ground_truth_input = tf.placeholder(
+                    tf.float32, [None, 10], name='GroundTruthInput')
+        predicts = tf.placeholder(tf.float32, [None, 10], name='predicts')
+        accuracy, _ = retrain.add_evaluation_step(predicts, ground_truth_input)
+
+        for i,checkpoint in enumerate(all_checkpoints):
+            checkpoint_prefix = checkpoint.replace('.data-00000-of-00001', '')
+            saver.restore(sess,checkpoint_prefix)
+
+            predictions = sess.run(output_operation.outputs[0],
+                 {input_operation.outputs[0]: ftg})
+
+            #print(predictions.shape)
+
+            feed_dict={predicts: predictions, ground_truth_input: ground_truths}
+            #accuracies.append(accuracy.eval(feed_dict, sess))
+            ret = accuracy.eval(feed_dict, sess)
+
+            _,fname=os.path.split(checkpoint_prefix)
+            prediction_name = fname.replace("model.ckpt-","")
+
+            worksheet.write(i, 0, fname)
+            worksheet.write(i, 1, ret)
+            print('checkpoint: %s, Ensemble Accuracy: %g' % (checkpoint,ret))
+            sio.savemat(workspace+'/prediction/prediction_'+prediction_name+'.mat',{"prediction": predictions})
+
+    stop = time.time()
+    #print(str((stop-start)/len(ftg))+' seconds.')
+    #sio.savemat('./data/feature.mat',{"feature": ftg})
     total_stop = time.time()
     print("total time is "+str((total_stop-total_start))+' seconds.')
-    print('Generating predictions finished.')
+
+
+if __name__ == "__main__":
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+    extract()
 
 
 

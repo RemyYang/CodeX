@@ -17,10 +17,14 @@ import retrain as retrain
 from count_ops import load_graph
 
 from sklearn.decomposition import PCA
+from glob import glob
 
 import time
 
 from tensorflow.python.framework.graph_util import convert_variables_to_constants
+sys.path.append("/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim")
+from nets import nets_factory
+
 
 def get_graph(path):
 
@@ -97,6 +101,76 @@ def write_excel(new_params):
             worksheet.write(i, j, new_params[i][j])
 
     workbook.close()
+
+def get_weight_and_bias(checkpoint_prefix,sess,graph,saver):
+    saver.restore(sess,checkpoint_prefix)
+    weight = graph.get_tensor_by_name('MobilenetV2/Logits/Conv2d_1c_1x1/weights:0')
+    biase = graph.get_tensor_by_name('MobilenetV2/Logits/Conv2d_1c_1x1/biases:0')
+    ws = weight.eval({}, sess)
+    bs = biase.eval({}, sess)
+    return ws,bs
+
+
+def average(ensemble_checkpoints,select_ensemble_checkpoints,dataset,FLAGS):
+    network_fn = nets_factory.get_network_fn(
+            FLAGS.model_name,
+            num_classes=(dataset.num_classes - FLAGS.labels_offset),
+            is_training=False)
+    placeholder = tf.placeholder(name='input', dtype=tf.float32,
+                         shape=[None, FLAGS.eval_image_size,
+                                FLAGS.eval_image_size, 3])
+
+    logits, _ = network_fn(placeholder)
+    graph = tf.get_default_graph()
+    saver = tf.train.Saver()
+    sess = tf.Session()
+    weights = []
+    biases = []
+    weights_tmp = []
+    biases_tmp = []
+
+    all_checkpoints = glob(os.path.join(FLAGS.checkpoint_path, "*.data*"))
+
+    #total checkpoints
+    for i,checkpoint in enumerate(all_checkpoints):
+        checkpoint_prefix = checkpoint.replace('.data-00000-of-00001', '')
+        #print(checkpoint_prefix)
+        ws,bs = get_weight_and_bias(checkpoint_prefix, sess, graph, saver)
+        weights.append(np.array(ws))
+        biases.append(np.array(bs))
+
+    #print(ensemble_checkpoints)
+
+    for i,checkpoint in enumerate(ensemble_checkpoints):
+        checkpoint_prefix = FLAGS.checkpoint_path + "/" + "model.ckpt-" +checkpoint
+        print(checkpoint_prefix)
+        ws,bs = get_weight_and_bias(checkpoint_prefix, sess, graph, saver)
+        weights_tmp.append(np.array(ws))
+        biases_tmp.append(np.array(bs))
+
+    weights_tmp_stack = np.stack(weights_tmp,0)
+    biases_tmp_stack = np.stack(biases_tmp,0)
+    weights.append(np.array(np.mean(weights_tmp_stack,axis = 0)))
+    biases.append(np.array(np.mean(biases_tmp_stack,axis = 0)))
+
+    weights_tmp = []
+    biases_tmp = []
+
+    for i,checkpoint in enumerate(select_ensemble_checkpoints):
+        checkpoint_prefix = FLAGS.checkpoint_path + "/" + "model.ckpt-" +checkpoint
+        print(checkpoint_prefix)
+        ws,bs = get_weight_and_bias(checkpoint_prefix, sess, graph, saver)
+        weights_tmp.append(np.array(ws))
+        biases_tmp.append(np.array(bs))
+
+    weights_tmp_stack = np.stack(weights_tmp,0)
+    biases_tmp_stack = np.stack(biases_tmp,0)
+    weights.append(np.array(np.mean(weights_tmp_stack,axis = 0)))
+    biases.append(np.array(np.mean(biases_tmp_stack,axis = 0)))
+    return weights,biases
+
+
+
 
 
 
