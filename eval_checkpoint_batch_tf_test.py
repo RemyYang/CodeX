@@ -36,7 +36,7 @@ tf.app.flags.DEFINE_string(
     'master', '', 'The address of the TensorFlow master to use.')
 
 tf.app.flags.DEFINE_string(
-    'checkpoint_path', './renamed_check_point/model.ckpt-0-0-0',
+    'checkpoint_path', './mobilenetv2_on_cifar10_check_point/0/model_0/model.ckpt-20000',
     'The directory where the model was written to or an absolute path to a '
     'checkpoint file.')
 
@@ -119,7 +119,33 @@ def preprocess_for_eval(image, height, width,
   image = tf.multiply(image, 2.0)
   return image
 
+def read_tensor_from_jpg_image_file(input_height=299, input_width=299,
+        input_mean=0, input_std=255):
+    input_name = "file_reader"
+    output_name = "normalized"
 
+    # [NEW] make file_name as a placeholder.
+    file_name_placeholder = tf.placeholder("string", name="fnamejpg")
+
+    file_reader = tf.read_file(file_name_placeholder, input_name)
+    #  if file_name.endswith(".png"):
+    #    image_reader = tf.image.decode_png(file_reader, channels = 3,
+    #                                       name='png_reader')
+    #  elif file_name.endswith(".gif"):
+    #    image_reader = tf.squeeze(tf.image.decode_gif(file_reader,
+    #                                                  name='gif_reader'))
+    #  elif file_name.endswith(".bmp"):
+    #    image_reader = tf.image.decode_bmp(file_reader, name='bmp_reader')
+    #  else:
+    #    image_reader = tf.image.decode_jpeg(file_reader, channels = 3,
+    #                                        name='jpeg_reader')
+    image_reader = tf.image.decode_jpeg(file_reader, channels = 3,
+                                        name='jpeg_reader')
+    normalized = preprocess_for_eval(image_reader, input_height, input_width)
+    #sess = tf.Session()
+    #result = sess.run(normalized)
+    #return result
+    return normalized
 
 def read_and_decode(filename_queue,image_size):
     reader = tf.TFRecordReader()
@@ -160,15 +186,14 @@ def extract():
 
     input_layer= "input"
     #nput_layer = "MobilenetV2/input"
-    #output_layer= "MobilenetV2/Predictions/Reshape_1"
-    output_layer= "MobilenetV2/Logits/AvgPool"
+    output_layer= "MobilenetV2/Predictions/Reshape_1"
 
     total_start = time.time()
     if os.path.exists("./data"):
         print("data is exist, please delete it!")
         exit()
         #shutil.rmtree("./data")
-    os.makedirs("./data")
+    #os.makedirs("./data")
 
 
     #sio.savemat('./data/truth.mat',{"truth": ground_truths})
@@ -176,7 +201,6 @@ def extract():
     cf = 0.875
     predictions = []
     ground_truths = []
-    features=[]
     i = 0
     start = time.time()
 
@@ -237,10 +261,10 @@ def extract():
 
                 ground_truths.extend(label_batch_v)
                 count += 1
-                feature = sess.run(output_operation.outputs[0],
+                pre = sess.run(logits,
                        {input_operation.outputs[0]: image_batch_v})
 
-                features.extend(feature)
+                predictions.extend(pre)
 
         except tf.errors.OutOfRangeError:
             print("done")
@@ -250,28 +274,26 @@ def extract():
 
             #i = i + 1
             #print(i)
-    features = np.array(features)
+    predictions = np.array(predictions)
     ground_truths = np.array(ground_truths)
 
 
-    print(features.shape)
+    print(predictions.shape)
     print(ground_truths.shape)
 
-    sio.savemat('./data/truth.mat',{"truth": ground_truths})
-    sio.savemat('./data/feature.mat',{"feature": features})
+    with tf.Session(config=config) as sess:
+   # with tf.Session(graph=graph) as sess:
+        ground_truth_input = tf.placeholder(
+            tf.float32, [None, 10], name='GroundTruthInput')
+        predicts = tf.placeholder(tf.float32, [None, 10], name='predicts')
+        accuracy, _ = retrain.add_evaluation_step(predicts, ground_truth_input)
+        feed_dict={predicts: predictions, ground_truth_input: ground_truths}
+        #accuracies.append(accuracy.eval(feed_dict, sess))
+        ret = accuracy.eval(feed_dict, sess)
 
-#    with tf.Session(config=config) as sess:
-#   # with tf.Session(graph=graph) as sess:
-#        ground_truth_input = tf.placeholder(
-#            tf.float32, [None, 10], name='GroundTruthInput')
-#        fts = tf.placeholder(tf.float32, [None, 10], name='fts')
-#        accuracy, _ = retrain.add_evaluation_step(fts, ground_truth_input)
-#        feed_dict={fts: predictions, ground_truth_input: ground_truths}
-#        #accuracies.append(accuracy.eval(feed_dict, sess))
-#        ret = accuracy.eval(feed_dict, sess)
-#    print('Ensemble Accuracy: %g' % ret)
+    print('Ensemble Accuracy: %g' % ret)
 
-
+    stop = time.time()
     #print(str((stop-start)/len(ftg))+' seconds.')
     #sio.savemat('./data/feature.mat',{"feature": ftg})
     total_stop = time.time()

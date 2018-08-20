@@ -37,8 +37,10 @@ def rename_and_move(old_path, new_path, new_name_prefix):
         #os.rename(os.path.join(old_path, prefix+str(number[i])+subfix_index), os.path.join(old_path, new_name_index))
         #shutil.move(os.path.join(old_path, new_name_data), os.path.join(new_path, new_name_data))
         #shutil.move(os.path.join(old_path, new_name_index), os.path.join(new_path, new_name_index))
-        shutil.copyfile(os.path.join(old_path, prefix+str(number[i])+subfix_data),os.path.join(new_path, new_name_data))      #复制文件
-        shutil.copyfile(os.path.join(old_path, prefix+str(number[i])+subfix_index),os.path.join(new_path, new_name_index))      #复制文件
+        print(os.path.join(old_path, prefix+str(number[i])+subfix_data))
+        print(os.path.join(new_path, new_name_data))
+        shutil.copyfile(os.path.join(old_path, prefix+str(number[i])+subfix_data),os.path.join(new_path, new_name_data))
+        shutil.copyfile(os.path.join(old_path, prefix+str(number[i])+subfix_index),os.path.join(new_path, new_name_index))
 
 
 original_ckpt_dir = './mobilenetv2_on_cifar10_check_point'
