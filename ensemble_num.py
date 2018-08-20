@@ -45,14 +45,13 @@ tf.app.flags.DEFINE_integer(
     'evaluate the VGG and ResNet architectures which do not use a background '
     'class for the ImageNet dataset.')
 
+tf.app.flags.DEFINE_integer(
+    'eval_image_size', 224, 'Eval image size')
+
 tf.app.flags.DEFINE_string(
     'checkpoint_path', './renamed_check_point',
     'The directory where the model was written to or an absolute path to a '
     'checkpoint file.')
-tf.app.flags.DEFINE_integer(
-    'eval_image_size', 224, 'Eval image size')
-
-
 FLAGS = tf.app.flags.FLAGS
 
 '''
@@ -64,9 +63,10 @@ evaluations3 = {'prediction_302':0.701399982, 'prediction_312':0.7016199827, 'pr
 
 evaluations1 = {'prediction_301':0.7011600137, 'prediction_311':0.701839, 'prediction_321':0.7020999789, 'prediction_331':0.7017400265, 'prediction_341':0.7002000213, 'prediction_351':0.701399982, 'prediction_361':0.7013599873, 'prediction_371':0.7017999887, 'prediction_381':0.7005000114, 'prediction_391':0.7020199895}
 '''
+#for cifar10
 evaluations1 = {'0-0-34':0.918200016,'0-1-34':0.9179999828, '0-2-34':0.918500006198883, '0-3-34':0.917599976062775, '0-4-35':0.918900012969971, '0-5-34':0.919200003147125, '0-6-34':0.917999982833862, '0-7-34':0.918699979782104, '0-8-35':0.917999982833862, '0-9-35':0.918600022792816}
-
-
+#for imagenet
+#evaluations1 = {'3-0-0':0.7014200091, '3-1-0':0.7016400099, '3-2-0':0.7019400001, '3-3-0':0.7016199827, '3-4-0':0.7002599835, '3-5-0':0.7012599707, '3-6-0':0.701120019, '3-7-0':0.7016599774, '3-8-0':0.7005400062, '3-9-0':0.7016999722}
 def auto_evaluate(bpath, evals, accuracy, subfix='.mat',prefix = "prediction_"):
     size = len(evals)
     #print(len(evals))
@@ -133,7 +133,7 @@ if __name__ == "__main__":
         ensemble_checkpoints = []
         select_ensemble_checkpoints = []
         for item in evaluations:
-            print(item[0],item[1])
+            #print(item[0],item[1])
             evals[item[0]] = item[1]
             accuracy = auto_evaluate('./prediction', evals, accuracy = accuracy_eval)
 

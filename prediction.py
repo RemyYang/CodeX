@@ -25,26 +25,15 @@ import xlsxwriter
 sys.path.append("/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim")
 from nets import nets_factory
 from datasets import dataset_factory
-workspace="/home/deepl/PHICOMM/RemyWorkSpace/ensemble/CodeX"
+#workspace="/home/deepl/PHICOMM/RemyWorkSpace/ensemble/CodeX"
+workspace = "."
 
-
-tf.app.flags.DEFINE_integer(
-    'batch_size', 128, 'The number of samples in each batch.')
-
-tf.app.flags.DEFINE_integer(
-    'max_num_batches', None,
-    'Max number of batches to evaluate by default use all.')
-
-tf.app.flags.DEFINE_string(
-    'master', '', 'The address of the TensorFlow master to use.')
 
 tf.app.flags.DEFINE_string(
     'checkpoint_path', './renamed_check_point',
     'The directory where the model was written to or an absolute path to a '
     'checkpoint file.')
 
-tf.app.flags.DEFINE_string(
-    'eval_dir', '/tmp/tfmodel/', 'Directory where the results are saved to.')
 
 tf.app.flags.DEFINE_integer(
     'num_preprocessing_threads', 4,
@@ -68,14 +57,6 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_string(
     'model_name', 'mobilenet_v2', 'The name of the architecture to evaluate.')
 
-tf.app.flags.DEFINE_string(
-    'preprocessing_name', None, 'The name of the preprocessing to use. If left '
-    'as `None`, then the model_name flag is used.')
-
-tf.app.flags.DEFINE_float(
-    'moving_average_decay', None,
-    'The decay to use for the moving average.'
-    'If left as None, then moving averages are not used.')
 
 tf.app.flags.DEFINE_integer(
     'eval_image_size', 224, 'Eval image size')
@@ -95,10 +76,11 @@ def extract():
     prediction_path=workspace+'/prediction'
 
     if os.path.exists(prediction_path):
-        print("%s is exist, please delete it!"%prediction_path)
-        exit()
+        print("%s is exist, will rewrite it!"%prediction_path)
+        #exit()
         #shutil.rmtree(prediction_path)
-    os.makedirs(prediction_path)
+    else:
+        os.makedirs(prediction_path)
 
     all_checkpoints = glob(os.path.join(FLAGS.checkpoint_path, "*.data*"))
     #print(all_checkpoints)
@@ -142,8 +124,8 @@ def extract():
         input_operation = graph.get_operation_by_name(input_layer);
 
         ground_truth_input = tf.placeholder(
-                    tf.float32, [None, 10], name='GroundTruthInput')
-        predicts = tf.placeholder(tf.float32, [None, 10], name='predicts')
+                    tf.float32, [None, dataset.num_classes], name='GroundTruthInput')
+        predicts = tf.placeholder(tf.float32, [None, dataset.num_classes], name='predicts')
         accuracy, _ = retrain.add_evaluation_step(predicts, ground_truth_input)
 
         for i,checkpoint in enumerate(all_checkpoints):

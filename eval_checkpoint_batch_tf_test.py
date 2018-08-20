@@ -24,6 +24,7 @@ import scipy.io as sio
 sys.path.append("/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim")
 from nets import nets_factory
 from datasets import dataset_factory
+slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_integer(
     'batch_size', 128, 'The number of samples in each batch.')
@@ -40,8 +41,6 @@ tf.app.flags.DEFINE_string(
     'The directory where the model was written to or an absolute path to a '
     'checkpoint file.')
 
-tf.app.flags.DEFINE_string(
-    'eval_dir', '/tmp/tfmodel/', 'Directory where the results are saved to.')
 
 tf.app.flags.DEFINE_integer(
     'num_preprocessing_threads', 4,
@@ -54,7 +53,7 @@ tf.app.flags.DEFINE_string(
     'dataset_split_name', 'test', 'The name of the train/test split.')
 
 tf.app.flags.DEFINE_string(
-    'dataset_dir', "/home/deepl/PHICOMM/dataset/cifar10_tf/cifar10_test.tfrecord", 'The directory where the dataset files are stored.')
+    'dataset_dir', "/home/deepl/PHICOMM/dataset/cifar10_tf", 'The directory where the dataset files are stored.')
 
 tf.app.flags.DEFINE_integer(
     'labels_offset', 0,
@@ -189,9 +188,9 @@ def extract():
     output_layer= "MobilenetV2/Predictions/Reshape_1"
 
     total_start = time.time()
-    if os.path.exists("./data"):
-        print("data is exist, please delete it!")
-        exit()
+#    if os.path.exists("./data"):
+#        print("data is exist, please delete it!")
+#        exit()
         #shutil.rmtree("./data")
     #os.makedirs("./data")
 
@@ -216,12 +215,23 @@ def extract():
             num_classes=(dataset.num_classes - FLAGS.labels_offset),
             is_training=False)
 
-        filename_queue = tf.train.string_input_producer(
-            [FLAGS.dataset_dir], num_epochs=1)
-        image, label = read_and_decode(filename_queue,FLAGS.eval_image_size)
-        print(image.shape)
-        print(image)
-        print(label.shape)
+        provider = slim.dataset_data_provider.DatasetDataProvider(
+            dataset,
+            num_epochs=1,
+            shuffle=False,
+            common_queue_capacity=2 * FLAGS.batch_size,
+            common_queue_min=FLAGS.batch_size)
+        [image, label] = provider.get(['image', 'label'])
+        label -= FLAGS.labels_offset
+
+        image = preprocess_for_eval(image, FLAGS.eval_image_size, FLAGS.eval_image_size)
+
+#        filename_queue = tf.train.string_input_producer(
+#            [FLAGS.dataset_dir], num_epochs=1)
+#        image, label = read_and_decode(filename_queue,FLAGS.eval_image_size)
+#        print(image.shape)
+#        print(image)
+#        print(label.shape)
 
         images_batch, labels_batch = tf.train.batch(
             [image, label],
@@ -254,9 +264,8 @@ def extract():
         count = 0
         try:
             while not coord.should_stop():
-                print("fisrt")
                 image_batch_v, label_batch_v = sess.run([images_batch, labels_batch_one_hot])
-                print(image_batch_v.shape, label_batch_v.shape)
+                #print(image_batch_v.shape, label_batch_v.shape)
                 print("this is %d batch"%count)
 
                 ground_truths.extend(label_batch_v)

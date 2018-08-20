@@ -26,6 +26,8 @@ sys.path.append("/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/
 from nets import nets_factory
 
 
+
+
 def get_graph(path):
 
     clss = os.listdir(path)
@@ -143,7 +145,7 @@ def average(ensemble_checkpoints,select_ensemble_checkpoints,dataset,FLAGS):
 
     for i,checkpoint in enumerate(ensemble_checkpoints):
         checkpoint_prefix = FLAGS.checkpoint_path + "/" + "model.ckpt-" +checkpoint
-        print(checkpoint_prefix)
+        #print(checkpoint_prefix)
         ws,bs = get_weight_and_bias(checkpoint_prefix, sess, graph, saver)
         weights_tmp.append(np.array(ws))
         biases_tmp.append(np.array(bs))
@@ -158,7 +160,7 @@ def average(ensemble_checkpoints,select_ensemble_checkpoints,dataset,FLAGS):
 
     for i,checkpoint in enumerate(select_ensemble_checkpoints):
         checkpoint_prefix = FLAGS.checkpoint_path + "/" + "model.ckpt-" +checkpoint
-        print(checkpoint_prefix)
+        #print(checkpoint_prefix)
         ws,bs = get_weight_and_bias(checkpoint_prefix, sess, graph, saver)
         weights_tmp.append(np.array(ws))
         biases_tmp.append(np.array(bs))
