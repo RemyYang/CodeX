@@ -21,7 +21,6 @@ import time
 
 import scipy.io as sio
 
-sys.path.append("/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim")
 from nets import nets_factory
 from datasets import dataset_factory
 from preprocessing import preprocessing_factory

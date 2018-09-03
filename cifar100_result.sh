@@ -1,9 +1,9 @@
 
-ORIGIN_CHECKPOINT_PATH="./mobilenetv2_on_imagenet_checkpoint"
-CHECKPOINT_PATH="./renamed_mobilenetv2_on_imagenet_checkpoint"
-DATASET_NAME="imagenet"
-DATASET_SPLIT_NAME="validation"
-DATASET_DIR="/home/deepl/Project/dataset/imagenet/tfrecord"
+ORIGIN_CHECKPOINT_PATH="./mobilenetv2_on_cifar100"
+CHECKPOINT_PATH="./renamed_mobilenetv2_on_cifar100_check_point"
+DATASET_NAME="cifar100"
+DATASET_SPLIT_NAME="test"
+DATASET_DIR=/home/deepl/Project/dataset/cifar100
 MODEL_NAME="mobilenet_v2"
 EVAL_IMAGE_SIZE=224
 
