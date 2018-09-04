@@ -13,7 +13,7 @@ import shutil
 import numpy as np
 import PIL.Image as Image
 import tensorflow as tf
-import pandas as pd
+
 import retrain as retrain
 from count_ops import load_graph
 from glob import glob
@@ -22,29 +22,19 @@ import time
 import scipy.io as sio
 import xlsxwriter
 
-sys.path.append("/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim")
 from nets import nets_factory
 from datasets import dataset_factory
-workspace="/home/deepl/PHICOMM/RemyWorkSpace/ensemble/CodeX"
+import pandas as pd
+import json
+#workspace="/home/deepl/PHICOMM/RemyWorkSpace/ensemble/CodeX"
+workspace = "."
 
-
-tf.app.flags.DEFINE_integer(
-    'batch_size', 128, 'The number of samples in each batch.')
-
-tf.app.flags.DEFINE_integer(
-    'max_num_batches', None,
-    'Max number of batches to evaluate by default use all.')
-
-tf.app.flags.DEFINE_string(
-    'master', '', 'The address of the TensorFlow master to use.')
 
 tf.app.flags.DEFINE_string(
     'checkpoint_path', './renamed_check_point',
     'The directory where the model was written to or an absolute path to a '
     'checkpoint file.')
 
-tf.app.flags.DEFINE_string(
-    'eval_dir', '/tmp/tfmodel/', 'Directory where the results are saved to.')
 
 tf.app.flags.DEFINE_integer(
     'num_preprocessing_threads', 4,
@@ -68,14 +58,6 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_string(
     'model_name', 'mobilenet_v2', 'The name of the architecture to evaluate.')
 
-tf.app.flags.DEFINE_string(
-    'preprocessing_name', None, 'The name of the preprocessing to use. If left '
-    'as `None`, then the model_name flag is used.')
-
-tf.app.flags.DEFINE_float(
-    'moving_average_decay', None,
-    'The decay to use for the moving average.'
-    'If left as None, then moving averages are not used.')
 
 tf.app.flags.DEFINE_integer(
     'eval_image_size', 224, 'Eval image size')
@@ -85,7 +67,23 @@ FLAGS = tf.app.flags.FLAGS
 
 
 
-
+def saveDataFramToFile(df,fileName):
+    data = {}
+    datalist= df.to_dict('record')
+    data["accuracy_list"]=datalist
+    '''
+    if df.shape[0] > 0:
+        data_total['msg']="ok"
+        data_total['code']="0"
+    else:
+        data_total['msg']="error"
+        data_total['code']="-1"
+    '''
+    jsObj = json.dumps(data,ensure_ascii=False)
+    f = file(fileName,'w')
+    f.write(jsObj)
+    f.close()
+    return data
 
 
 
@@ -95,12 +93,14 @@ def extract():
     prediction_path=workspace+'/prediction'
 
     if os.path.exists(prediction_path):
-        print("%s is exist, please delete it!"%prediction_path)
-        exit()
+        print("%s is exist, will rewrite it!"%prediction_path)
+        #exit()
         #shutil.rmtree(prediction_path)
-    os.makedirs(prediction_path)
+    else:
+        os.makedirs(prediction_path)
 
     all_checkpoints = glob(os.path.join(FLAGS.checkpoint_path, "*.data*"))
+    all_checkpoints.sort()
     #print(all_checkpoints)
 
     input_layer= "MobilenetV2/Logits/AvgPool"
@@ -118,6 +118,9 @@ def extract():
 
     workbook = xlsxwriter.Workbook("accuracies3.xlsx")
     worksheet = workbook.add_worksheet()
+
+    all_files_df = pd.DataFrame(columns=['checkpoint_name', 'accuracy'])
+
 
 
     #print(ground_truths.shape)
@@ -142,9 +145,11 @@ def extract():
         input_operation = graph.get_operation_by_name(input_layer);
 
         ground_truth_input = tf.placeholder(
-                    tf.float32, [None, 10], name='GroundTruthInput')
-        predicts = tf.placeholder(tf.float32, [None, 10], name='predicts')
+                    tf.float32, [None, dataset.num_classes], name='GroundTruthInput')
+        predicts = tf.placeholder(tf.float32, [None, dataset.num_classes], name='predicts')
         accuracy, _ = retrain.add_evaluation_step(predicts, ground_truth_input)
+
+        index = 0
 
         for i,checkpoint in enumerate(all_checkpoints):
             checkpoint_prefix = checkpoint.replace('.data-00000-of-00001', '')
@@ -162,10 +167,17 @@ def extract():
             _,fname=os.path.split(checkpoint_prefix)
             prediction_name = fname.replace("model.ckpt-","")
 
+            all_files_df.loc[index,"checkpoint_name"] = fname
+            all_files_df.loc[index,"accuracy"] = float(ret)
+            index = index + 1
+
             worksheet.write(i, 0, fname)
             worksheet.write(i, 1, ret)
-            print('checkpoint: %s, Ensemble Accuracy: %g' % (checkpoint,ret))
+            print('checkpoint: %s, Accuracy: %g' % (checkpoint,ret))
             sio.savemat(workspace+'/prediction/prediction_'+prediction_name+'.mat',{"prediction": predictions})
+
+    saveDataFramToFile(all_files_df, "./accuracy_json.txt")
+
 
     stop = time.time()
     #print(str((stop-start)/len(ftg))+' seconds.')

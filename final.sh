@@ -5,4 +5,4 @@ python rename.py
 python extract_feature.py
 python prediction.py
 python ensemble_num.py
-python average.py
+#python average.py
