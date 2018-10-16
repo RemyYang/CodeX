@@ -6,6 +6,11 @@ tf.app.flags.DEFINE_string(
     'original_ckpt_dir', './mobilenetv2_on_cifar10_check_point', 'original_ckpt_dir')
 tf.app.flags.DEFINE_string(
     'new_ckpt_dir', './renamed_check_point', 'new_ckpt_dir')
+tf.app.flags.DEFINE_integer(
+    'select_model_num', 10, 'ever model dir selected num')
+tf.app.flags.DEFINE_boolean(
+    'base_mode', False,
+    'identity if use one base model to ensemble')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -14,19 +19,32 @@ def rename_and_copy(old_path, new_path, new_name_prefix):
     file_names = os.listdir(old_path)
 
     data_list = glob(os.path.join(old_path, "*.data*"))
-    data_list.sort()
+    if data_list != []:
+        data_list.sort(reverse=True)
 
-    prefix = 'model.ckpt-'
-    subfix_data = '.data-00000-of-00001'
-    subfix_index = '.index'
+        prefix = 'model.ckpt-'
+        subfix_data = '.data-00000-of-00001'
+        subfix_index = '.index'
 
-    for i, file_path in enumerate(data_list):
-        index_path = file_path.replace(subfix_data,subfix_index)
-        new_name_data = prefix + new_name_prefix + str(i) + subfix_data
-        new_name_index = prefix + new_name_prefix + str(i) + subfix_index
+        for i, file_path in enumerate(data_list):
+            if i == FLAGS.select_model_num:
+                break
+            index_path = file_path.replace(subfix_data,subfix_index)
+            new_name_data = prefix + new_name_prefix + str(i) + subfix_data
+            new_name_index = prefix + new_name_prefix + str(i) + subfix_index
 
-        shutil.copyfile(file_path,os.path.join(new_path, new_name_data))
-        shutil.copyfile(index_path,os.path.join(new_path, new_name_index))
+            shutil.copyfile(file_path,os.path.join(new_path, new_name_data))
+            shutil.copyfile(index_path,os.path.join(new_path, new_name_index))
+
+    data_list = glob(os.path.join(old_path, "*.ckpt"))
+    if data_list != []:
+        data_list.sort(reverse=True)
+        prefix = 'model'
+        old_subfix_ckpt = '.ckpt'
+        for i, file_path in enumerate(data_list):
+            new_name_ckpt = prefix + new_name_prefix + str(i) + old_subfix_ckpt
+            shutil.copyfile(file_path,os.path.join(new_path, new_name_ckpt))
+
 ""
 
 
@@ -84,5 +102,6 @@ if __name__ == "__main__":
                 old_path = os.path.join(os.path.join(FLAGS.original_ckpt_dir, parts[i]), models_dir[j])
                 rename_and_copy(old_path, FLAGS.new_ckpt_dir, str(i)+'-'+str(j)+'-')
         else:
-            old_path = os.path.join(FLAGS.original_ckpt_dir, parts[i])
-            rename_and_copy(old_path, FLAGS.new_ckpt_dir, "best-")
+            if FLAGS.base_mode == True:
+                old_path = os.path.join(FLAGS.original_ckpt_dir, parts[i])
+                rename_and_copy(old_path, FLAGS.new_ckpt_dir, "best-")
