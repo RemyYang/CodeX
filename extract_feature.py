@@ -68,6 +68,12 @@ tf.app.flags.DEFINE_string(
     'preprocessing_name', None, 'The name of the preprocessing to use. If left '
     'as `None`, then the model_name flag is used.')
 
+tf.app.flags.DEFINE_string(
+    'input_layer', "input", 'input_layer')
+
+tf.app.flags.DEFINE_string(
+    'output_layer', "MobilenetV2/Logits/AvgPool", 'output_layer')
+
 tf.app.flags.DEFINE_integer(
     'eval_image_size', 224, 'Eval image size')
 
@@ -152,11 +158,6 @@ def read_and_decode(filename_queue,image_size):
 
 def extract():
 
-    input_layer= "input"
-    #nput_layer = "MobilenetV2/input"
-    #output_layer= "MobilenetV2/Predictions/Reshape_1"
-    output_layer= "MobilenetV2/Logits/AvgPool"
-
     total_start = time.time()
     if os.path.exists("./data"):
         print("data is exist, will rewrite it!")
@@ -166,9 +167,6 @@ def extract():
         os.makedirs("./data")
 
 
-    #sio.savemat('./data/truth.mat',{"truth": ground_truths})
-
-    cf = 0.875
     predictions = []
     ground_truths = []
     features=[]
@@ -209,15 +207,6 @@ def extract():
         image = image_preprocessing_fn(image, eval_image_size, eval_image_size)
 
 
-#        dataset_list = glob(dataset.data_sources)
-#        #print(dataset_list)
-#        filename_queue = tf.train.string_input_producer(
-#            dataset_list, num_epochs=1)
-#        image, label = read_and_decode(filename_queue,FLAGS.eval_image_size)
-#        print(image.shape)
-#        print(image)
-#        print(label.shape)
-
         images_batch, labels_batch = tf.train.batch(
             [image, label],
             batch_size=FLAGS.batch_size,
@@ -235,8 +224,8 @@ def extract():
         graph = tf.get_default_graph()
         saver = tf.train.Saver()
 
-        output_operation = graph.get_operation_by_name(output_layer);
-        input_operation = graph.get_operation_by_name(input_layer);
+        output_operation = graph.get_operation_by_name(FLAGS.output_layer);
+        input_operation = graph.get_operation_by_name(FLAGS.input_layer);
 
         batch_size = FLAGS.batch_size
         print("every batch is %d"%(batch_size))
@@ -244,6 +233,7 @@ def extract():
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
         saver.restore(sess,FLAGS.checkpoint_path+"/model.ckpt-0-0-0")
+
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess, coord)
         count = 0
@@ -252,46 +242,52 @@ def extract():
                 image_batch_v, label_batch_v = sess.run([images_batch, labels_batch_one_hot])
                 #print(image_batch_v.shape, label_batch_v.shape)
                 print("this is %d batch"%count)
-
                 ground_truths.extend(label_batch_v)
                 count += 1
                 feature = sess.run(output_operation.outputs[0],
                        {input_operation.outputs[0]: image_batch_v})
 
-                features.extend(feature)
 
+                features.extend(feature)
         except tf.errors.OutOfRangeError:
             print("done")
         finally:
             coord.request_stop()
         coord.join(threads)
-
             #i = i + 1
             #print(i)
     features = np.array(features)
     ground_truths = np.array(ground_truths)
 
 
+
     print(features.shape)
-    print(ground_truths.shape)
+    print(ground_truths.shape)#
+    truth_mat_name='./data/'+FLAGS.model_name+'_'+FLAGS.dataset_name+'_'+'truth.mat'
+    Feature_mat_name='./data/'+FLAGS.model_name+'_'+FLAGS.dataset_name+'_'+'feature.mat'
+    sio.savemat(truth_mat_name,{"truth": ground_truths})
+    sio.savemat(Feature_mat_name,{"feature": features})
 
-    sio.savemat('./data/truth.mat',{"truth": ground_truths})
-    sio.savemat('./data/feature.mat',{"feature": features})
 
-#    with tf.Session(config=config) as sess:
-#   # with tf.Session(graph=graph) as sess:
+########test accuracy
+#    with tf.Session(graph=graph) as sess:
+#        output_operation = graph.get_operation_by_name("MobilenetV2/Predictions/Reshape_1");
+#        input_operation = graph.get_operation_by_name(FLAGS.output_layer);
+
 #        ground_truth_input = tf.placeholder(
-#            tf.float32, [None, 10], name='GroundTruthInput')
-#        fts = tf.placeholder(tf.float32, [None, 10], name='fts')
-#        accuracy, _ = retrain.add_evaluation_step(fts, ground_truth_input)
-#        feed_dict={fts: predictions, ground_truth_input: ground_truths}
+#                    tf.float32, [None, dataset.num_classes], name='GroundTruthInput')
+#        predicts = tf.placeholder(tf.float32, [None, dataset.num_classes], name='predicts')
+#        accuracy, _ = retrain.add_evaluation_step(predicts, ground_truth_input)
+
+#        #saver.restore(sess,"/home/deepl/Project/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim/mobilenetv2_quantize_checkpoint/base/model.ckpt-40000")
+#        saver.restore(sess,FLAGS.checkpoint_path+"/model.ckpt-best-0")
+#        predictions = sess.run(output_operation.outputs[0],{input_operation.outputs[0]: features})
+#        feed_dict={predicts: predictions, ground_truth_input: ground_truths}
 #        #accuracies.append(accuracy.eval(feed_dict, sess))
 #        ret = accuracy.eval(feed_dict, sess)
 #    print('Ensemble Accuracy: %g' % ret)
 
 
-    #print(str((stop-start)/len(ftg))+' seconds.')
-    #sio.savemat('./data/feature.mat',{"feature": ftg})
     total_stop = time.time()
     print("total time is "+str((total_stop-total_start))+' seconds.')
 

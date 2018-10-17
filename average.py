@@ -132,6 +132,9 @@ def average(ensemble_checkpoints,select_ensemble_checkpoints,dataset,FLAGS):
     biases_tmp = []
 
     all_checkpoints = glob(os.path.join(FLAGS.checkpoint_path, "*.data*"))
+    old_checkpoints = glob(os.path.join(FLAGS.checkpoint_path, "*.ckpt"))
+    all_checkpoints = all_checkpoints + old_checkpoints
+
     all_checkpoints.sort()
     #print(all_checkpoints)
 

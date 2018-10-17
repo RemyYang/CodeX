@@ -62,6 +62,12 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_integer(
     'eval_image_size', 224, 'Eval image size')
 
+tf.app.flags.DEFINE_string(
+    'input_layer', "MobilenetV2/Logits/AvgPool", 'input_layer')
+
+tf.app.flags.DEFINE_string(
+    'output_layer', "MobilenetV2/Predictions/Reshape_1", 'output_layer')
+
 FLAGS = tf.app.flags.FLAGS
 
 
@@ -90,7 +96,7 @@ def saveDataFramToFile(df,fileName):
 
 def extract():
 
-    prediction_path=workspace+'/prediction'
+    prediction_path=workspace+'/prediction/'+FLAGS.model_name+'_'+FLAGS.dataset_name
 
     if os.path.exists(prediction_path):
         print("%s is exist, will rewrite it!"%prediction_path)
@@ -100,14 +106,17 @@ def extract():
         os.makedirs(prediction_path)
 
     all_checkpoints = glob(os.path.join(FLAGS.checkpoint_path, "*.data*"))
+    old_checkpoints = glob(os.path.join(FLAGS.checkpoint_path, "*.ckpt"))
+    all_checkpoints = all_checkpoints + old_checkpoints
     all_checkpoints.sort()
-    #print(all_checkpoints)
+    print(all_checkpoints)
+s
 
-    input_layer= "MobilenetV2/Logits/AvgPool"
-    output_layer= "MobilenetV2/Predictions/Reshape_1"
+    truth_mat_name=workspace+'/data/'+FLAGS.model_name+'_'+FLAGS.dataset_name+'_'+'truth.mat'
+    Feature_mat_name=workspace+'/data/'+FLAGS.model_name+'_'+FLAGS.dataset_name+'_'+'feature.mat'
 
-    feature = sio.loadmat(workspace+'/data/feature.mat')
-    truth = sio.loadmat(workspace+'/data/truth.mat')
+    feature = sio.loadmat(Feature_mat_name)
+    truth = sio.loadmat(truth_mat_name)
     ftg = feature['feature']
     ground_truths = truth['truth']
 
@@ -126,7 +135,6 @@ def extract():
     #print(ground_truths.shape)
 
     with tf.Session(config=config) as sess:
-   # with tf.Session(graph=graph) as sess:
         dataset = dataset_factory.get_dataset(
             FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir)
 
@@ -141,8 +149,8 @@ def extract():
         logits, _ = network_fn(placeholder)
         graph = tf.get_default_graph()
         saver = tf.train.Saver()
-        output_operation = graph.get_operation_by_name(output_layer);
-        input_operation = graph.get_operation_by_name(input_layer);
+        output_operation = graph.get_operation_by_name(FLAGS.output_layer);
+        input_operation = graph.get_operation_by_name(FLAGS.input_layer);
 
         ground_truth_input = tf.placeholder(
                     tf.float32, [None, dataset.num_classes], name='GroundTruthInput')
@@ -161,7 +169,6 @@ def extract():
             #print(predictions.shape)
 
             feed_dict={predicts: predictions, ground_truth_input: ground_truths}
-            #accuracies.append(accuracy.eval(feed_dict, sess))
             ret = accuracy.eval(feed_dict, sess)
 
             _,fname=os.path.split(checkpoint_prefix)
@@ -174,14 +181,13 @@ def extract():
             worksheet.write(i, 0, fname)
             worksheet.write(i, 1, ret)
             print('checkpoint: %s, Accuracy: %g' % (checkpoint,ret))
-            sio.savemat(workspace+'/prediction/prediction_'+prediction_name+'.mat',{"prediction": predictions})
+            sio.savemat(prediction_path+'/prediction_'+prediction_name+'.mat',{"prediction": predictions})
 
-    saveDataFramToFile(all_files_df, "./accuracy_json.txt")
+    accuracy_json_name=workspace+"/accuracy/"+FLAGS.model_name+'_'+FLAGS.dataset_name+'_'+"accuracy_json.txt"
+    saveDataFramToFile(all_files_df, accuracy_json_name)
 
 
     stop = time.time()
-    #print(str((stop-start)/len(ftg))+' seconds.')
-    #sio.savemat('./data/feature.mat',{"feature": ftg})
     total_stop = time.time()
     print("total time is "+str((total_stop-total_start))+' seconds.')
 

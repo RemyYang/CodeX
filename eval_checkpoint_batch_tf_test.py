@@ -24,7 +24,10 @@ import scipy.io as sio
 sys.path.append("/home/deepl/PHICOMM/FoodAI/FoodAi/tensorflow/tensorflow_models/models/research/PHICOMM/slim")
 from nets import nets_factory
 from datasets import dataset_factory
+from preprocessing import preprocessing_factory
 slim = tf.contrib.slim
+
+
 
 tf.app.flags.DEFINE_integer(
     'batch_size', 128, 'The number of samples in each batch.')
@@ -37,8 +40,7 @@ tf.app.flags.DEFINE_string(
     'master', '', 'The address of the TensorFlow master to use.')
 
 tf.app.flags.DEFINE_string(
-    'checkpoint_path', './mobilenetv2_on_cifar10_check_point/0/model_0/model.ckpt-20000',
-    'The directory where the model was written to or an absolute path to a '
+    'checkpoint_path', "/home/deepl/Project/moble_ensemble_checkpoint/mobilenetv2_on_imagenet_checkpoint/0/model_1/model.ckpt-40000" , 'The directory where the model was written to or an absolute path to a '
     'checkpoint file.')
 
 
@@ -47,13 +49,13 @@ tf.app.flags.DEFINE_integer(
     'The number of threads used to create the batches.')
 
 tf.app.flags.DEFINE_string(
-    'dataset_name', 'cifar10', 'The name of the dataset to load.')
+    'dataset_name', 'imagenet', 'The name of the dataset to load.')
 
 tf.app.flags.DEFINE_string(
-    'dataset_split_name', 'test', 'The name of the train/test split.')
+    'dataset_split_name', 'validation', 'The name of the train/test split.')
 
 tf.app.flags.DEFINE_string(
-    'dataset_dir', "/home/deepl/PHICOMM/dataset/cifar10_tf", 'The directory where the dataset files are stored.')
+    'dataset_dir', "/home/deepl/Project/dataset/imagenet/tfrecord", 'The directory where the dataset files are stored.')
 
 tf.app.flags.DEFINE_integer(
     'labels_offset', 0,
@@ -65,7 +67,7 @@ tf.app.flags.DEFINE_string(
     'model_name', 'mobilenet_v2', 'The name of the architecture to evaluate.')
 
 tf.app.flags.DEFINE_string(
-    'preprocessing_name', None, 'The name of the preprocessing to use. If left '
+    'preprocessing_name', "inception", 'The name of the preprocessing to use. If left '
     'as `None`, then the model_name flag is used.')
 
 tf.app.flags.DEFINE_float(
@@ -74,7 +76,7 @@ tf.app.flags.DEFINE_float(
     'If left as None, then moving averages are not used.')
 
 tf.app.flags.DEFINE_integer(
-    'eval_image_size', 224, 'Eval image size')
+    'eval_image_size', 299, 'Eval image size')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -224,7 +226,13 @@ def extract():
         [image, label] = provider.get(['image', 'label'])
         label -= FLAGS.labels_offset
 
-        image = preprocess_for_eval(image, FLAGS.eval_image_size, FLAGS.eval_image_size)
+        preprocessing_name = FLAGS.preprocessing_name or FLAGS.model_name
+        image_preprocessing_fn = preprocessing_factory.get_preprocessing(
+            preprocessing_name,
+            is_training=False)
+        eval_image_size = FLAGS.eval_image_size or network_fn.default_image_size
+
+        image = image_preprocessing_fn(image, eval_image_size, FLAGS.eval_image_size)
 
 #        filename_queue = tf.train.string_input_producer(
 #            [FLAGS.dataset_dir], num_epochs=1)
@@ -293,8 +301,8 @@ def extract():
     with tf.Session(config=config) as sess:
    # with tf.Session(graph=graph) as sess:
         ground_truth_input = tf.placeholder(
-            tf.float32, [None, 10], name='GroundTruthInput')
-        predicts = tf.placeholder(tf.float32, [None, 10], name='predicts')
+            tf.float32, [None, 1001], name='GroundTruthInput')
+        predicts = tf.placeholder(tf.float32, [None, 1001], name='predicts')
         accuracy, _ = retrain.add_evaluation_step(predicts, ground_truth_input)
         feed_dict={predicts: predictions, ground_truth_input: ground_truths}
         #accuracies.append(accuracy.eval(feed_dict, sess))
